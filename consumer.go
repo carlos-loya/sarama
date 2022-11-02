@@ -838,6 +838,7 @@ func (bc *brokerConsumer) updateSubscriptions(newSubscriptions []*partitionConsu
 
 // handleResponses handles the response codes left for us by our subscriptions, and abandons ones that have been closed
 func (bc *brokerConsumer) handleResponses() {
+	Logger.Println("inside of broker consumer handleResponses")
 	for child := range bc.subscriptions {
 		result := child.responseResult
 		child.responseResult = nil
@@ -848,10 +849,10 @@ func (bc *brokerConsumer) handleResponses() {
 					// not an error but needs redispatching to consume from prefered replica
 					child.trigger <- none{}
 					delete(bc.subscriptions, child)
+				} else {
+					// it is the preferred broker
+					Logger.Printf("preferred broker is %v\n", preferredBroker)
 				}
-			} else {
-				// it is the preferred broker
-				Logger.Printf("preferred broker is %v", preferredBroker)
 			}
 			continue
 		}
