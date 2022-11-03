@@ -729,6 +729,7 @@ type brokerConsumer struct {
 	wait             chan none
 	acks             sync.WaitGroup
 	refs             int
+	logcounter       int64
 }
 
 func (c *consumer) newBrokerConsumer(broker *Broker) *brokerConsumer {
@@ -740,10 +741,13 @@ func (c *consumer) newBrokerConsumer(broker *Broker) *brokerConsumer {
 		wait:             make(chan none),
 		subscriptions:    make(map[*partitionConsumer]none),
 		refs:             0,
+		logcounter:       0,
 	}
 
 	go withRecover(bc.subscriptionManager)
 	go withRecover(bc.subscriptionConsumer)
+
+	Logger.Printf("broker consumer rack id is: %s\n", c.conf.RackID)
 
 	return bc
 }
@@ -838,7 +842,6 @@ func (bc *brokerConsumer) updateSubscriptions(newSubscriptions []*partitionConsu
 
 // handleResponses handles the response codes left for us by our subscriptions, and abandons ones that have been closed
 func (bc *brokerConsumer) handleResponses() {
-	Logger.Println("inside of broker consumer handleResponses")
 	for child := range bc.subscriptions {
 		result := child.responseResult
 		child.responseResult = nil
@@ -851,7 +854,10 @@ func (bc *brokerConsumer) handleResponses() {
 					delete(bc.subscriptions, child)
 				} else {
 					// it is the preferred broker
-					Logger.Printf("preferred broker is %v\n", preferredBroker)
+					if bc.logcounter == 0 || bc.logcounter%200 == 0 {
+						Logger.Printf("preferred broker addy is %s rack id is %v\n", preferredBroker.addr, preferredBroker.rack)
+					}
+					bc.logcounter += 1
 				}
 			}
 			continue
