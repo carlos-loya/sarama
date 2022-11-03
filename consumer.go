@@ -855,7 +855,7 @@ func (bc *brokerConsumer) handleResponses() {
 				} else {
 					// it is the preferred broker
 					if bc.logcounter == 0 || bc.logcounter%200 == 0 {
-						Logger.Printf("preferred broker addy is %s rack id is %v\n", preferredBroker.addr, preferredBroker.rack)
+						Logger.Printf("preferred broker addy is %s rack id is %s\n", preferredBroker.addr, *preferredBroker.rack)
 					}
 					bc.logcounter += 1
 				}
