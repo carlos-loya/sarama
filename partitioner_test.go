@@ -207,6 +207,36 @@ func TestManualPartitioner(t *testing.T) {
 	}
 }
 
+func TestWithCustomFallbackPartitioner(t *testing.T) {
+	topic := "mytopic"
+
+	partitioner := NewCustomPartitioner(
+		// override default random partitioner with round robin
+		WithCustomFallbackPartitioner(NewRoundRobinPartitioner(topic)),
+	)(topic)
+
+	// Should use round robin implementation if there is no key
+	var i int32
+	for i = 0; i < 50; i++ {
+		choice, err := partitioner.Partition(&ProducerMessage{Key: nil}, 7)
+		if err != nil {
+			t.Error(partitioner, err)
+		}
+		if choice != i%7 {
+			t.Error("Returned partition", choice, "expecting", i%7)
+		}
+	}
+
+	// should use hash partitioner if key is specified
+	buf := make([]byte, 256)
+	for i := 0; i < 50; i++ {
+		if _, err := rand.Read(buf); err != nil {
+			t.Error(err)
+		}
+		assertPartitioningConsistent(t, partitioner, &ProducerMessage{Key: ByteEncoder(buf)}, 50)
+	}
+}
+
 // By default, Sarama uses the message's key to consistently assign a partition to
 // a message using hashing. If no key is set, a random partition will be chosen.
 // This example shows how you can partition messages randomly, even when a key is set,
@@ -217,7 +247,8 @@ func ExamplePartitioner_random() {
 
 	producer, err := NewSyncProducer([]string{"localhost:9092"}, config)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return
 	}
 	defer func() {
 		if err := producer.Close(); err != nil {
@@ -228,7 +259,8 @@ func ExamplePartitioner_random() {
 	msg := &ProducerMessage{Topic: "test", Key: StringEncoder("key is set"), Value: StringEncoder("test")}
 	partition, offset, err := producer.SendMessage(msg)
 	if err != nil {
-		log.Fatalln("Failed to produce message to kafka cluster.")
+		log.Println("Failed to produce message to kafka cluster.")
+		return
 	}
 
 	log.Printf("Produced message to partition %d with offset %d", partition, offset)
@@ -243,7 +275,8 @@ func ExamplePartitioner_manual() {
 
 	producer, err := NewSyncProducer([]string{"localhost:9092"}, config)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return
 	}
 	defer func() {
 		if err := producer.Close(); err != nil {
@@ -256,11 +289,13 @@ func ExamplePartitioner_manual() {
 
 	partition, offset, err := producer.SendMessage(msg)
 	if err != nil {
-		log.Fatalln("Failed to produce message to kafka cluster.")
+		log.Println("Failed to produce message to kafka cluster.")
+		return
 	}
 
 	if partition != 6 {
-		log.Fatal("Message should have been produced to partition 6!")
+		log.Println("Message should have been produced to partition 6!")
+		return
 	}
 
 	log.Printf("Produced message to partition %d with offset %d", partition, offset)
