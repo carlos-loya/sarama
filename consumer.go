@@ -313,6 +313,9 @@ type partitionConsumer struct {
 	fetchSize      int32
 	offset         int64
 	retries        int32
+
+	logCounterDispatcher int64
+	logCounterPreferred  int64
 }
 
 var errTimedOut = errors.New("timed out feeding messages to the user") // not user-facing
@@ -368,13 +371,20 @@ func (child *partitionConsumer) dispatcher() {
 func (child *partitionConsumer) preferredBroker() (*Broker, error) {
 	if child.preferredReadReplica >= 0 {
 		broker, err := child.consumer.client.Broker(child.preferredReadReplica)
-		Logger.Printf("preferred read replica is: %v\n", child.preferredReadReplica)
+		if child.logCounterPreferred == 1 || child.logCounterPreferred%100 == 0 {
+			Logger.Printf("preferred read replica is: %v\n", child.preferredReadReplica)
+		}
+		child.logCounterPreferred += 1
+
 		if err == nil {
 			return broker, nil
 		}
 	}
 
-	Logger.Printf("falling back to leader. preferred read replica is: %v\n", child.preferredReadReplica)
+	if child.logCounterPreferred == 1 || child.logCounterPreferred%100 == 0 {
+		Logger.Printf("falling back to leader. preferred read replica is: %v\n", child.preferredReadReplica)
+	}
+	child.logCounterPreferred += 1
 
 	// if prefered replica cannot be found fallback to leader
 	return child.consumer.client.Leader(child.topic, child.partition)
@@ -390,7 +400,11 @@ func (child *partitionConsumer) dispatch() error {
 		return err
 	}
 
-	Logger.Printf("dispatch is preferring broker addr %s with rack id of %s\n", broker.addr, *broker.rack)
+	if child.logCounterDispatcher == 1 || child.logCounterDispatcher%100 == 0 {
+		Logger.Printf("dispatch is preferring broker addr %s with rack id of %s\n", broker.addr, *broker.rack)
+	}
+
+	child.logCounterDispatcher += 1
 
 	child.broker = child.consumer.refBrokerConsumer(broker)
 
@@ -735,6 +749,7 @@ type brokerConsumer struct {
 	acks             sync.WaitGroup
 	refs             int
 	logcounter       int64
+	logSubConsumer   int64
 }
 
 func (c *consumer) newBrokerConsumer(broker *Broker) *brokerConsumer {
@@ -747,6 +762,7 @@ func (c *consumer) newBrokerConsumer(broker *Broker) *brokerConsumer {
 		subscriptions:    make(map[*partitionConsumer]none),
 		refs:             0,
 		logcounter:       0,
+		logSubConsumer:   0,
 	}
 
 	go withRecover(bc.subscriptionManager)
@@ -811,7 +827,9 @@ func (bc *brokerConsumer) subscriptionConsumer() {
 			continue
 		}
 
-		Logger.Printf("fetching new messages from broker addr %s and rack id of %s\n", bc.broker.addr, *bc.broker.rack)
+		if bc.logSubConsumer == 1 || bc.logSubConsumer%100 == 0 {
+			Logger.Printf("fetching new messages from broker addr %s and rack id of %s\n", bc.broker.addr, *bc.broker.rack)
+		}
 
 		response, err := bc.fetchNewMessages()
 		if err != nil {
