@@ -750,6 +750,7 @@ type brokerConsumer struct {
 	refs             int
 	logcounter       int64
 	logSubConsumer   int64
+	logPref          int64
 }
 
 func (c *consumer) newBrokerConsumer(broker *Broker) *brokerConsumer {
@@ -830,6 +831,8 @@ func (bc *brokerConsumer) subscriptionConsumer() {
 		if bc.logSubConsumer == 1 || bc.logSubConsumer%100 == 0 {
 			Logger.Printf("fetching new messages from broker addr %s and rack id of %s\n", bc.broker.addr, *bc.broker.rack)
 		}
+
+		bc.logSubConsumer += 1
 
 		response, err := bc.fetchNewMessages()
 		if err != nil {
@@ -976,7 +979,11 @@ func (bc *brokerConsumer) fetchNewMessages() (*FetchResponse, error) {
 		request.RackID = bc.consumer.conf.RackID
 	}
 
-	Logger.Printf("fetching new messages with request version %v client id is %v\n", request.Version, bc.consumer.conf.Version)
+	if bc.logPref == 1 || bc.logPref%100 == 0 {
+		Logger.Printf("fetching new messages with request version %v client id is %v\n", request.Version, bc.consumer.conf.Version)
+	}
+
+	bc.logPref += 1
 
 	for child := range bc.subscriptions {
 		request.AddBlock(child.topic, child.partition, child.offset, child.fetchSize)
