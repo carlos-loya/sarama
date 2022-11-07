@@ -163,6 +163,8 @@ func NewClient(addrs []string, conf *Config) (Client, error) {
 		coordinators:            make(map[string]int32),
 	}
 
+	Logger.Printf("New client with rack id: %s", conf.RackID)
+
 	client.randomizeSeedBrokers(addrs)
 
 	if conf.Metadata.Full {

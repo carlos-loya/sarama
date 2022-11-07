@@ -368,10 +368,13 @@ func (child *partitionConsumer) dispatcher() {
 func (child *partitionConsumer) preferredBroker() (*Broker, error) {
 	if child.preferredReadReplica >= 0 {
 		broker, err := child.consumer.client.Broker(child.preferredReadReplica)
+		Logger.Printf("preferred read replica is: %v\n", child.preferredReadReplica)
 		if err == nil {
 			return broker, nil
 		}
 	}
+
+	Logger.Printf("falling back to leader. preferred read replica is: %v\n", child.preferredReadReplica)
 
 	// if prefered replica cannot be found fallback to leader
 	return child.consumer.client.Leader(child.topic, child.partition)
@@ -386,6 +389,8 @@ func (child *partitionConsumer) dispatch() error {
 	if err != nil {
 		return err
 	}
+
+	Logger.Printf("dispatch is preferring broker addr %s with rack id of %s\n", broker.addr, *broker.rack)
 
 	child.broker = child.consumer.refBrokerConsumer(broker)
 
@@ -806,6 +811,8 @@ func (bc *brokerConsumer) subscriptionConsumer() {
 			continue
 		}
 
+		Logger.Printf("fetching new messages from broker addr %s and rack id of %s\n", bc.broker.addr, *bc.broker.rack)
+
 		response, err := bc.fetchNewMessages()
 		if err != nil {
 			Logger.Printf("consumer/broker/%d disconnecting due to error processing FetchRequest: %s\n", bc.broker.ID(), err)
@@ -950,6 +957,8 @@ func (bc *brokerConsumer) fetchNewMessages() (*FetchResponse, error) {
 		request.Version = 11
 		request.RackID = bc.consumer.conf.RackID
 	}
+
+	Logger.Printf("fetching new messages with request version %v client id is %v\n", request.Version, bc.consumer.conf.Version)
 
 	for child := range bc.subscriptions {
 		request.AddBlock(child.topic, child.partition, child.offset, child.fetchSize)
